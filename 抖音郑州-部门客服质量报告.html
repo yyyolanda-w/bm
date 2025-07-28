@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>部门客服质量报告</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js?v=1" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js?v=1" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js?v=1" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js?v=1" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js?v=1" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chrono-node/2.7.0/chrono.min.js?v=1" crossorigin="anonymous"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background-color: #F7FAFC; margin: 0; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-slideIn { animation: slideIn 0.6s ease-out; }
+    .navbar { position: fixed; top: 0; left: 0; right: 0; background-color: rgba(255,255,255,0.9); backdrop-filter: blur(20px); border-radius: 0 0 12px 12px; z-index: 30; transition: height 0.3s ease-in-out; box-sizing: border-box; }
+    .navbar-collapsed { height: 4rem; }
+    .navbar-expanded { height: 6rem; }
+    .navbar-content { display: flex; justify-content: flex-start; align-items: center; box-sizing: border-box; max-width: 64rem; margin: 0 auto; padding: 0 1rem; height: 4rem; }
+    @media (min-width: 640px) { .navbar-content { padding: 0 1.5rem; } }
+    .hamburger { cursor: pointer; font-size: 1.2rem; color: #333333; width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s ease; padding: 0.5rem; }
+    .hamburger:hover { color: #555555; transform: scale(1.1); }
+    .hamburger.active::before { content: '✕'; font-size: 1.2rem; }
+    .hamburger:not(.active)::before { content: '☰'; font-size: 1.2rem; }
+    .navbar-menu { max-height: 0; overflow: hidden; transform: translateY(-10px); transition: max-height 0.3s ease-out, transform 0.3s ease-out; width: 100%; max-width: 64rem; margin: 0 auto; padding: 0 1rem; display: flex; align-items: center; height: 2rem; }
+    .navbar-menu.active { max-height: 100px; transform: translateY(0); }
+    @media (min-width: 640px) { .navbar-menu { padding: 0 1.5rem; } }
+    .navbar-menu-content { display: flex; align-items: center; gap: 1rem; width: 100%; }
+    .custom-button { background-color: #F7FAFC; color: #7030A0; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; transition: all 0.2s ease; }
+    .custom-button:hover { background-color: #DBEAFE; color: #2563EB; transform: scale(1.05); }
+    .custom-select { background-color: #F7FAFC; color: #7030A0; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 600; width: 12rem; transition: all 0.2s ease; }
+    @media (min-width: 640px) { .custom-select { width: 16rem; } }
+    .custom-select:hover { background-color: #DBEAFE; color: #2563EB; transform: scale(1.05); }
+    .custom-select:focus { outline: none; box-shadow: 0 0 0 2px #2563EB; }
+    .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #E5E7EB; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #7030A0; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #5A2A88; }
+    .custom-bullet { display: flex; align-items: center; }
+    .custom-bullet::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #7030A0; margin-right: 10px; }
+    .tooltip { background-color: #ffffff; border: 1px solid #E5E7EB; border-radius: 8px; padding: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+    .report-container .chart-text a.video-link { color: #9333EA !important; font-weight: 600; text-decoration: underline; }
+    .report-container .chart-text a.video-link:hover, .report-container .chart-text a.video-link:active { color: #7E22CE !important; }
+    .chart-xaxis { font-size: 10px; white-space: pre-wrap; word-wrap: break-word; max-width: 100px; }
+    .recharts-surface { overflow: visible; }
+    .recharts-xAxis .recharts-text { overflow: visible; }
+    .recharts-legend-wrapper { padding-bottom: 20px; padding-left: 20px; }
+    .chart-container { padding-top: 2rem; }
+    .table-container { overflow-x: auto; min-width: 300px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #E5E7EB; padding: 6px; text-align: left; font-size: 12px; }
+    th { background-color: #F7FAFC; font-weight: 600; }
+    /* Specific column widths for continuous problem reps table */
+    .continuous-problem-reps th:nth-child(1), .continuous-problem-reps td:nth-child(1) { width: 20%; } /* 客服工号 */
+    .continuous-problem-reps th:nth-child(2), .continuous-problem-reps td:nth-child(2) { width: 20%; white-space: nowrap; } /* 客服姓名 */
+    .continuous-problem-reps th:nth-child(3), .continuous-problem-reps td:nth-child(3) { width: 20%; } /* 持续不改善日期 */
+    .continuous-problem-reps th:nth-child(4), .continuous-problem-reps td:nth-child(4) { width: 40%; } /* 持续不改善问题点 */
+    @media (max-width: 640px) { 
+      .chart-container { padding: 0 4px; padding-top: 1.5rem; } 
+      .chart-title { font-size: clamp(18px, 5vw, 20px); margin-bottom: 2rem !important; } 
+      .chart-text { font-size: clamp(14px, 4vw, 16px); } 
+      .chart-xaxis { font-size: clamp(8px, 2.5vw, 10px); } 
+      /* Adjust column widths for mobile */
+      .continuous-problem-reps th:nth-child(1), .continuous-problem-reps td:nth-child(1) { width: 25%; }
+      .continuous-problem-reps th:nth-child(2), .continuous-problem-reps td:nth-child(2) { width: 25%; white-space: nowrap; }
+      .continuous-problem-reps th:nth-child(3), .continuous-problem-reps td:nth-child(3) { width: 25%; }
+      .continuous-problem-reps th:nth-child(4), .continuous-problem-reps td:nth-child(4) { width: 25%; }
+    }
+    @media (min-width: 640px) { 
+      .chart-title { font-size: 1.5rem; margin-bottom: 2.5rem !important; } 
+      .chart-text { font-size: 1rem; } 
+      .chart-xaxis { font-size: 10px; } 
+    }
+    .overview-metric h3 { font-size: 1rem; white-space: nowrap; }
+    @media (min-width: 640px) { .overview-metric h3 { font-size: 1.125rem; } }
+        .watermark {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%) rotate(-45deg);
+      color: rgba(0, 0, 0, 0.1);
+      font-size: 2rem;
+      font-weight: 300;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 10;
+    }
+
+    .watermark-top {
+      top: 100px;
+    }
+
+    .watermark-middle {
+      top: 40%;
+    }
+
+    .watermark-bottom {
+      top: 70%;
+    }
+
+    @media (max-width: 640px) {
+      .watermark {
+        font-size: 1.5rem;
+      }
+      .watermark-top {
+        top: 80px;
+      }
+      .watermark-middle {
+        top: 35%;
+      }
+      .watermark-bottom {
+        top: 65%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="error" className="hidden text-red-600 text-center mt-4"></div>
+  <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+      console.error('Error:', message, 'Source:', source, 'Line:', lineno, 'Column:', colno, 'Details:', error);
+      const errorDiv = document.getElementById('error');
+      errorDiv.className = 'text-red-600 text-center mt-4';
+      errorDiv.innerText = `脚本错误：${message}. 请检查网络或控制台详情。`;
+      return true;
+    };
+    let rechartsLoaded = false;
+    let rechartsError = null;
+    function loadRecharts() {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js?v=1';
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        script.onload = () => {
+          if (typeof window.Recharts !== 'undefined') {
+            rechartsLoaded = true;
+            resolve();
+          } else {
+            rechartsError = 'Recharts 脚本加载成功但未正确初始化';
+            reject(new Error(rechartsError));
+          }
+        };
+        script.onerror = () => {
+          rechartsError = '无法加载 Recharts 脚本，请检查网络连接或稍后重试';
+          reject(new Error(rechartsError));
+        };
+        document.head.appendChild(script);
+        setTimeout(() => {
+          if (!rechartsLoaded && !rechartsError) {
+            rechartsError = 'Recharts 加载超时，请检查网络连接';
+            reject(new Error(rechartsError));
+          }
+        }, 10000);
+      });
+    }
+    loadRecharts().catch(err => {
+      console.error(err.message);
+      const errorDiv = document.getElementById('error');
+      errorDiv.className = 'text-red-600 text-center mt-4';
+      errorDiv.innerText = err.message;
+    });
+  </script>
+  <script type="text/babel" data-plugins="transform-react-jsx" data-presets="react">
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+
+    function HomePage({ departments, setSelectedDept, setPage }) {
+      const [searchTerm, setSearchTerm] = React.useState('');
+      const filteredDepts = departments.filter(dept =>
+        dept.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-100 flex items-center justify-center py-8">
+          <div className="container mx-auto px-4 sm:px-6 max-w-full sm:max-w-lg bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-6 sm:p-8 animate-slideIn">
+            <h1 className="text-2xl sm:text-3xl font-bold text-center text-[rgb(112,48,160)] mb-6 sm:mb-8">
+              选择部门查看质量报告
+            </h1>
+            <div className="relative w-full mb-6">
+              <input
+                type="text"
+                placeholder="搜索部门名称..."
+                className="w-full p-3 sm:p-4 pl-10 sm:pl-12 rounded-lg border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-[rgb(112,48,160)] text-sm sm:text-base transition-all duration-300"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <svg className="absolute left-3 sm:left-4 top-3 sm:top-3.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <div className="w-full">
+              <div className="max-h-64 overflow-y-auto bg-white rounded-lg border border-gray-200 shadow-sm custom-scrollbar">
+                {filteredDepts.length > 0 ? (
+                  filteredDepts.map(dept => (
+                    <div key={dept} className="flex items-center p-3 hover:bg-indigo-50 transition duration-300">
+                      <input
+                        type="radio"
+                        name="dept"
+                        value={dept}
+                        onChange={(e) => setSelectedDept(e.target.value)}
+                        className="h-5 w-5 text-[rgb(112,48,160)] border-gray-200 rounded focus:ring-[rgb(112,48,160)]"
+                      />
+                      <span className="ml-3 text-gray-800 text-sm sm:text-base">{dept}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="p-3 text-gray-600 text-center text-sm sm:text-base">无匹配的部门</p>
+                )}
+              </div>
+              <button
+                className="mt-6 w-full bg-[rgb(112,48,160)] text-white p-3 sm:p-4 rounded-lg shadow-md hover:bg-[rgb(90,42,136)] hover:shadow-lg transition-all duration-300 text-sm sm:text-base"
+                onClick={() => setPage('report')}
+              >
+                确认
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function NavBar({ departments, selectedDept, setSelectedDept, setPage, isNavbarOpen, toggleNavbar }) {
+      return (
+        <div className={`navbar ${isNavbarOpen ? 'navbar-expanded' : 'navbar-collapsed'}`}>
+          <div className="navbar-content">
+            <div className="flex items-center">
+              <span
+                className={`hamburger ${isNavbarOpen ? 'active' : ''}`}
+                onClick={toggleNavbar}
+              ></span>
+            </div>
+            <div className={`navbar-menu ${isNavbarOpen ? 'active' : ''}`}>
+              <div className="navbar-menu-content">
+                <button
+                  className="custom-button flex items-center"
+                  onClick={() => setPage('home')}
+                >
+                  <svg className="h-6 w-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l-2-2m0 0l7-7 7 7m-9 5v6h4v-6m-4-2h.01M21 12l-2-2m0 0l-7-7-7 7" />
+                  </svg>
+                  返回导航
+                </button>
+                <select
+                  className="custom-select"
+                  value={selectedDept}
+                  onChange={(e) => setSelectedDept(e.target.value)}
+                >
+                  {departments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function Report({ data, dept_name, workplace, date_range, deduction_reasons, core_metric, metric_name, problem_order_percent, problem_rep_percent, continuous_problem_reps, continuous_problem_reps_percent, metric_achievement }) {
+      const processAndCleanData = (rawData) => {
+        return rawData.map(row => ({
+          ...row,
+          "人工复检分数": parseFloat(row["人工复检分数"]) || 0,
+          "进线时间": typeof chrono !== 'undefined' ? chrono.parseDate(row["进线时间"]) || new Date() : new Date(row["进线时间"] || Date.now()),
+          "人工扣/加分项": String(row["人工扣/加分项"] || "")
+        })).filter(row => row["人工复检分数"] !== 0);
+      };
+
+      const cleanedData = processAndCleanData(data);
+
+      if (!cleanedData || cleanedData.length === 0) {
+        return (
+          <div className="report-container min-h-screen bg-gradient-to-br from-gray-50 to-indigo-100 flex items-center justify-center pt-16">
+            <div className="container mx-auto px-4 sm:px-6 max-w-full sm:max-w-5xl bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-6 sm:p-8 animate-slideIn">
+              <div className="text-xl sm:text-2xl font-semibold text-gray-600 text-center">无数据可显示</div>
+            </div>
+          </div>
+        );
+      }
+
+      const scoreDistribution = cleanedData.reduce((acc, row) => {
+        const score = row["人工复检分数"];
+        acc[score] = (acc[score] || 0) + 1;
+        return acc;
+      }, {});
+
+      const scoreChartData = Object.keys(scoreDistribution).map(score => ({
+        score: parseInt(score),
+        次数: scoreDistribution[score]
+      })).sort((a, b) => a.score - b.score);
+
+      const reasonChartData = Object.keys(deduction_reasons).map(reason => ({
+        reason: reason.trim(),
+        次数: deduction_reasons[reason]
+      })).sort((a, b) => b.次数 - a.次数 || a.reason.localeCompare(b.reason));
+
+      const topDeductionReasons = reasonChartData.slice(0, 3).map(r => ({
+        reason: r.reason
+      }));
+
+      const metricAchievementData = [
+        { status: '未评价', count: metric_achievement.unevaluated },
+        { status: '达标', count: metric_achievement.achieved },
+        { status: '未达标', count: metric_achievement.not_achieved }
+      ];
+
+      const avgScore = cleanedData.reduce((sum, row) => sum + row["人工复检分数"], 0) / cleanedData.length;
+      const record_count = cleanedData.length;
+      const score_distribution_100_count = scoreDistribution[100] || 0;
+      const score_distribution_100_percent = (score_distribution_100_count / record_count * 100).toFixed(2);
+
+      const min_score = Math.min(...cleanedData.map(row => row["人工复检分数"])) || 0;
+      const max_score = Math.max(...cleanedData.map(row => row["人工复检分数"])) || 0;
+      let score_range = '';
+      if (max_score - min_score <= 5) {
+        score_range = `${Math.floor(min_score)}-${Math.floor(max_score)}`;
+      } else {
+        const bins = Array.from({length: Math.ceil((max_score - min_score) / 5) + 1}, (_, i) => Math.floor(min_score / 5) * 5 + i * 5);
+        const hist = cleanedData.reduce((acc, row) => {
+          const score = row["人工复检分数"];
+          const bin = bins.find(b => score >= b && score < b + 5) || bins[bins.length - 1];
+          acc[bin] = (acc[bin] || 0) + 1;
+          return acc;
+        }, {});
+        const most_frequent_bin = Object.keys(hist).reduce((a, b) => hist[a] > hist[b] ? a : b);
+        score_range = `${most_frequent_bin}-${parseInt(most_frequent_bin) + 5}`;
+      }
+
+      const deduction_summary = reasonChartData.length === 0
+        ? "无显著扣分项"
+        : [
+            ...reasonChartData.slice(0, 2).map(r => `“${r.reason}”`),
+            reasonChartData.length > 2 && reasonChartData[2] ? `以及“${reasonChartData[2].reason}”` : ''
+          ].filter(Boolean).join('、');
+
+      // Calculate top 10 reps by problem order percentage
+      const repProblemStats = cleanedData.reduce((acc, row) => {
+        const rep_id = row["接待客服工号"];
+        const rep_name = row["接待客服姓名"] || "未知";
+        if (!acc[rep_id]) {
+          acc[rep_id] = { rep_id, rep_name, total_orders: 0, problem_orders: 0 };
+        }
+        acc[rep_id].total_orders += 1;
+        if (row["人工复检分数"] < 100) {
+          acc[rep_id].problem_orders += 1;
+        }
+        return acc;
+      }, {});
+      const topProblemReps = Object.values(repProblemStats)
+        .map(rep => ({
+          ...rep,
+          problem_percent: rep.total_orders > 0 ? (rep.problem_orders / rep.total_orders * 100).toFixed(2) : 0
+        }))
+        .sort((a, b) => b.problem_percent - a.problem_percent || a.rep_id.localeCompare(b.rep_id))
+        .slice(0, 10);
+
+      // Prepare continuous problem reps table with merged cells
+      const sortedProblemReps = continuous_problem_reps.sort((a, b) => {
+        if (a.rep_id === b.rep_id) return a.date_range.localeCompare(b.date_range);
+        return a.rep_id.localeCompare(b.rep_id);
+      });
+      const mergedProblemReps = [];
+      let currentRepId = null;
+      let rowSpan = 0;
+      sortedProblemReps.forEach((rep, index) => {
+        if (rep.rep_id !== currentRepId) {
+          if (currentRepId !== null) {
+            mergedProblemReps[mergedProblemReps.length - rowSpan].rowSpan = rowSpan;
+          }
+          currentRepId = rep.rep_id;
+          rowSpan = 1;
+          mergedProblemReps.push({ ...rep, rowSpan: 1 });
+        } else {
+          rowSpan += 1;
+          mergedProblemReps.push({ ...rep, rowSpan: 0 });
+        }
+      });
+      if (mergedProblemReps.length > 0) {
+        mergedProblemReps[mergedProblemReps.length - rowSpan].rowSpan = rowSpan;
+      }
+
+      // Calculate unique rep IDs for continuous problem reps count
+      const uniqueProblemRepIds = [...new Set(continuous_problem_reps.map(rep => rep.rep_id))].length;
+
+      return (
+        <div className="report-container min-h-screen bg-gradient-to-br from-gray-50 to-indigo-100 py-8 sm:py-12 pt-16">
+          <div className="container mx-auto px-4 sm:px-6 max-w-full sm:max-w-5xl bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-6 sm:p-8 animate-slideIn">
+            <h1 className="text-2xl sm:text-4xl font-bold text-center text-[rgb(112,48,160)] mb-6 sm:mb-8">
+              部门 {dept_name} ({workplace}) 半年度质量报告
+            </h1>
+            <p className= "quality-team"></p>
+            <div className="watermark watermark-top">质量监管组</div>
+            <div className="watermark watermark-middle">质量监管组</div>
+            <div className="watermark watermark-bottom">质量监管组</div>
+            <section className="mb-8 sm:mb-12">
+              <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-4 sm:mb-6 chart-title">一、概述</h2>
+              <p className="text-gray-600 leading-relaxed text-base sm:text-lg chart-text mb-6">
+                本报告基于部门 {dept_name} ({workplace}) 在半年度的质检数据，分析其服务质量表现。关键指标包括质检评分、{metric_name}、问题工单占比、问题人员占比和持续不改善人员占比。
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-6 sm:gap-8">
+                <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-2xl shadow-sm p-6 sm:p-8 flex flex-col items-center justify-center hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slideIn overview-metric">
+                  <h3 className="font-semibold text-[rgb(112,48,160)]">质检评分</h3>
+                  <p className="text-xl sm:text-2xl font-medium text-[rgb(112,48,160)]">{avgScore.toFixed(2)}</p>
+                </div>
+                <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-2xl shadow-sm p-6 sm:p-8 flex flex-col items-center justify-center hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slideIn overview-metric">
+                  <h3 className="font-semibold text-[rgb(112,48,160)]">{metric_name}</h3>
+                  <p className="text-xl sm:text-2xl font-medium text-[rgb(112,48,160)]">{(core_metric * 100).toFixed(2)}%</p>
+                </div>
+                <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-2xl shadow-sm p-6 sm:p-8 flex flex-col items-center justify-center hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slideIn overview-metric">
+                  <h3 className="font-semibold text-[rgb(112,48,160)]">问题工单占比</h3>
+                  <p className="text-xl sm:text-2xl font-medium text-[rgb(112,48,160)]">{problem_order_percent.toFixed(2)}%</p>
+                </div>
+                <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-2xl shadow-sm p-6 sm:p-8 flex flex-col items-center justify-center hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slideIn overview-metric">
+                  <h3 className="font-semibold text-[rgb(112,48,160)]">问题人员占比</h3>
+                  <p className="text-xl sm:text-2xl font-medium text-[rgb(112,48,160)]">{problem_rep_percent.toFixed(2)}%</p>
+                </div>
+                <div className="bg-white/80 backdrop-blur-md border border-gray-200 rounded-2xl shadow-sm p-6 sm:p-8 flex flex-col items-center justify-center hover:shadow-lg hover:scale-105 transition-all duration-300 animate-slideIn overview-metric">
+                  <h3 className="font-semibold text-[rgb(112,48,160)]">持续不改善人员占比</h3>
+                  <p className="text-xl sm:text-2xl font-medium text-[rgb(112,48,160)]">{continuous_problem_reps_percent.toFixed(2)}%</p>
+                </div>
+              </div>
+              <div className="mt-6 sm:mt-8 bg-white/80 backdrop-blur-md rounded-2xl p-6 sm:p-8 shadow-sm">
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-800 text-center mb-4">主要问题点</h3>
+                {topDeductionReasons.length > 0 ? (
+                  <ul className="list-none space-y-3 text-base sm:text-lg font-medium text-gray-800 text-center">
+                    {topDeductionReasons.map(({ reason }) => (
+                      <li key={reason} className="custom-bullet">{reason}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-base sm:text-lg font-medium text-gray-800 text-center">无显著扣分项</p>
+                )}
+              </div>
+            </section>
+
+            {rechartsLoaded ? (
+              <>
+                <section className="mb-12 sm:mb-16 chart-container">
+                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-8 sm:mb-10 chart-title">二、分数分布</h2>
+                  <Recharts.ResponsiveContainer width="100%" height={300}>
+                    <Recharts.BarChart data={scoreChartData}>
+                      <Recharts.CartesianGrid strokeDasharray="5 5" stroke="#E5E7EB" />
+                      <Recharts.XAxis dataKey="score" label={{ value: '分数', position: 'insideBottom', offset: -5, fontSize: 14 }} tick={{ fontSize: '12px', className: 'chart-xaxis' }} />
+                      <Recharts.YAxis label={{ value: '次数', angle: -90, position: 'insideLeft', fontSize: 14 }} domain={[0, 'auto']} />
+                      <Recharts.Tooltip wrapperClassName="tooltip" />
+                      <Recharts.Legend />
+                      <Recharts.Bar dataKey="次数" fill="#7030A0">
+                        <Recharts.LabelList dataKey="次数" position="top" fill="#333333" fontSize="8px" />
+                      </Recharts.Bar>
+                    </Recharts.BarChart>
+                  </Recharts.ResponsiveContainer>
+                  <p className="text-gray-600 mt-4 sm:mt-6 text-base sm:text-lg chart-text">
+                    分数分布图显示，部门 {dept_name} 的质检分数主要集中在{score_range} 分之间，其中100分记录占{score_distribution_100_percent}%（{score_distribution_100_count} 条）。
+                  </p>
+                </section>
+
+                <section className="mb-12 sm:mb-16 chart-container">
+                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-8 sm:mb-10 chart-title">三、扣分项分析</h2>
+                  <Recharts.ResponsiveContainer width="100%" height={300}>
+                    <Recharts.BarChart data={reasonChartData}>
+                      <Recharts.CartesianGrid strokeDasharray="5 5" stroke="#E5E7EB" />
+                      <Recharts.XAxis dataKey="reason" tick={{ fontSize: '8px', className: 'chart-xaxis' }} interval={0} angle={-45} textAnchor="end" height={120} />
+                      <Recharts.YAxis 
+        label={{ value: '次数', angle: -90, position: 'insideLeft', fontSize: 8 }} 
+        domain={[0, 'auto']} 
+        tick={{ fontSize: '8px' }}  /* 设置纵轴刻度标签字体大小为 8px */
+      />
+                      <Recharts.Tooltip wrapperClassName="tooltip" />
+                      <Recharts.Legend />
+                      <Recharts.Bar dataKey="次数" fill="#B91C1C">
+                        <Recharts.LabelList dataKey="次数" position="top" fill="#333333" fontSize="8px" />
+                      </Recharts.Bar>
+                    </Recharts.BarChart>
+                  </Recharts.ResponsiveContainer>
+                  <p className="text-gray-600 mt-4 sm:mt-6 text-base sm:text-lg chart-text">
+                    扣分项分析显示，{deduction_summary}。
+                  </p>
+                </section>
+
+                <section className="mb-12 sm:mb-16 chart-container">
+                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-8 sm:mb-10 chart-title">四、问题工单占比最高的客服人员</h2>
+                  {topProblemReps.length > 0 ? (
+                    <div className="table-container">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>客服工号</th>
+                            <th>客服姓名</th>
+                            <th>总质检工单数</th>
+                            <th>问题工单数</th>
+                            <th>问题工单占比 (%)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {topProblemReps.map((rep, index) => (
+                            <tr key={rep.rep_id}>
+                              <td>{rep.rep_id}</td>
+                              <td>{rep.rep_name}</td>
+                              <td>{rep.total_orders}</td>
+                              <td>{rep.problem_orders}</td>
+                              <td>{rep.problem_percent}%</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-base sm:text-lg font-medium text-gray-800">无问题工单记录</p>
+                  )}
+                  <p className="text-gray-600 mt-4 sm:mt-6 text-base sm:text-lg chart-text">
+                    {topProblemReps.length > 0
+                      ? `以上为问题工单占比最高的 ${topProblemReps.length} 名客服人员，最高占比为 ${topProblemReps[0].problem_percent}%。`
+                      : '无客服人员有问题工单记录。'}
+                  </p>
+                </section>
+
+                <section className="mb-12 sm:mb-16 chart-container">
+                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-8 sm:mb-10 chart-title">五、核心指标达成情况</h2>
+                  <Recharts.ResponsiveContainer width="100%" height={300}>
+                    <Recharts.PieChart>
+                      <Recharts.Pie
+                        data={metricAchievementData}
+                        dataKey="count"
+                        nameKey="status"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        label
+                      >
+                        <Recharts.Cell fill="#A0AEC0" /> {/* 未评价: Gray */}
+                        <Recharts.Cell fill="#7030A0" /> {/* 达标: Purple */}
+                        <Recharts.Cell fill="#B91C1C" /> {/* 未达标: Red */}
+                      </Recharts.Pie>
+                      <Recharts.Tooltip wrapperClassName="tooltip" />
+                      <Recharts.Legend />
+                    </Recharts.PieChart>
+                  </Recharts.ResponsiveContainer>
+                  <p className="text-gray-600 mt-4 sm:mt-6 text-base sm:text-lg chart-text">
+                    核心指标达成情况显示，部门 {dept_name} 中有{metric_achievement.achieved}人达成指标，{metric_achievement.not_achieved}人未达成指标，{metric_achievement.unevaluated}人未评价，占总人数的{(metric_achievement.achieved / metric_achievement.total * 100).toFixed(2)}%达成率。
+                  </p>
+                </section>
+
+                <section className="mb-8 sm:mb-12">
+                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-4 sm:mb-6 chart-title">六、持续不改善人员</h2>
+                  <p className="text-base sm:text-lg font-medium text-gray-800 mb-4">
+                    总计 {uniqueProblemRepIds} 人存在持续不改善问题
+                  </p>
+                  {mergedProblemReps.length > 0 ? (
+                    <div className="table-container">
+                      <table className="continuous-problem-reps">
+                        <thead>
+                          <tr>
+                            <th>客服工号</th>
+                            <th>客服姓名</th>
+                            <th>持续不改善日期</th>
+                            <th>持续不改善问题点</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {mergedProblemReps.map((rep, index) => (
+                            <tr key={`${rep.rep_id}-${rep.date_range}-${rep.reason}`}>
+                              {rep.rowSpan > 0 ? (
+                                <>
+                                  <td rowSpan={rep.rowSpan}>{rep.rep_id}</td>
+                                  <td rowSpan={rep.rowSpan}>{rep.rep_name}</td>
+                                </>
+                              ) : null}
+                              <td>{rep.date_range}</td>
+                              <td>{rep.reason}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-base sm:text-lg font-medium text-gray-800">无持续不改善人员</p>
+                  )}
+                </section>
+              </>
+            ) : (
+              <section className="mb-12 sm:mb-16">
+                <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-8 sm:mb-10 chart-title">图表加载失败</h2>
+                <p className="text-gray-600 leading-relaxed text-base sm:text-lg chart-text">
+                  无法加载图表库：{rechartsError || '请检查网络连接或稍后重试'}。以下为数据摘要：
+                  <ul className="list-none space-y-3 text-base sm:text-lg font-medium text-gray-800 mt-4">
+                    <li className="custom-bullet">分数范围：{score_range}</li>
+                    <li className="custom-bullet">100分记录占比：{score_distribution_100_percent}%（{score_distribution_100_count} 条）</li>
+                    <li className="custom-bullet">问题工单占比：{problem_order_percent.toFixed(2)}%</li>
+                    <li className="custom-bullet">问题人员占比：{problem_rep_percent.toFixed(2)}%</li>
+                    <li className="custom-bullet">持续不改善人员占比：{continuous_problem_reps_percent.toFixed(2)}%</li>
+                    {topDeductionReasons.length > 0 && (
+                      <li className="custom-bullet">主要扣分项：{deduction_summary}</li>
+                    )}
+                  </ul>
+                </p>
+              </section>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const allData = {"在线接待组": {"data": [{"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1935687453161", "人工扣/加分项": "客服业务知识不足-未结合物流轨迹/问题件进行回复 -5.0分", "人工复检分数": 95.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936300816972", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936845472103", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1937580052496", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1937747263242", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1937882155019", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1937901254477", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1937985375389", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937875737471", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937882606391", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938015741033", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1936265469251", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1937862649042", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938542038303", "人工扣/加分项": "客服业务知识不足-基础业务知识解释不当/回答错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938780407347", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939314400557", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939372102466", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939391940382", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939517959162", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939624918605", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939786052498", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1939565406669", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1939792617953", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1939867599977", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1939884762190", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1940024465389", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1938699748948", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1939370365726", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1939509978513", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 表达能力及话术有待提升-表达逻辑不清晰、不简洁 -2.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940085631978", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940202854576", "人工扣/加分项": "工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940464820386", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941410351604", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941441356599", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941599383328", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941700939783", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT7547253821832", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1941294241921", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1942156135088", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942130292972", "人工扣/加分项": "客服业务知识不足-时效件未做解释/未告知预计到达时间 -5.0分", "人工复检分数": 95.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942172080173", "人工扣/加分项": "接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942186177982", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942212717632", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942270152507", "人工扣/加分项": "客服业务知识不足-时效件未做解释/未告知预计到达时间 -5.0分", "人工复检分数": 95.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942383302772", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942517333663", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942531748050", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942366753195", "人工扣/加分项": "客服业务知识不足-时效件未做解释/未告知预计到达时间 -5.0分, 接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 93.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942473452936", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1705", "接待客服姓名": "展志敏", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942663152426", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1935056789963", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1934855536761", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1935154685509", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1935919335928", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1935996349937", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936493018405", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936083634503", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936255140094", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936418439117", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT2551843659904", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936488043117", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 96.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936614635270", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936772428349", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1936984975152", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1937233418802", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1937271258349", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938004093921", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938198390187", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938217527325", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938244325989", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938350865656", "人工扣/加分项": "客服业务知识不足-更址件未告知转寄物流时间 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1937594404731", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938233623308", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938431920324", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938470188350", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938479282291", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938809819207", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1939076109318", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1938637441742", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939721797062", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939851176438", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939875319116", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940109805750", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 同理心-未主动致歉安抚挽留/安抚不到位 -3.0分", "人工复检分数": 96.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940183332229", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 同理心-未主动致歉安抚挽留/安抚不到位 -3.0分", "人工复检分数": 96.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940300942694", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940400001244", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1939928310682", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940093401206", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940287971823", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940572101285", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940522565288", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940707444548", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1940444544763", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941161173012", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941704432305", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941707415851", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941935091438", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1942008157806", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1941142025664", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1941423686614", "人工扣/加分项": "客服业务知识不足-未结合物流轨迹/问题件进行回复 -5.0分", "人工复检分数": 95.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1941774419332", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1941860756787", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1942125996427", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1941815334909", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1711", "接待客服姓名": "杨琳", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942426607798", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1935949087455", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936238171246", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936267706534", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936419385150", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1935919130749", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936183366702", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936348672963", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936385837570", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936589993599", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1935567690842", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936265940075", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936745720423", "人工扣/加分项": "禁用语-接待禁语 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936802105136", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936836286788", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1936831960377", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1936889901788", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1936996721219", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1937006593178", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937409107552", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937814183893", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937820805853", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937867851608", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938068655257", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1936044934215", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1937535617772", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938294201480", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938503705338", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938548379831", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "无", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938424320520", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938446720465", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1936235541398", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938534090298", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938607603888", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938893443359", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1939761366237", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1939786640844", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1939829929224", "人工扣/加分项": "接待敷衍-未主动服务 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1940022494299", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1939920365624", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1939962711117", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940108123374", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940381802409", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1939469608848", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940264160839", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940266050482", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940489754255", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1940585119642", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1940872178330", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 96.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941128550913", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941637662983", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941674378733", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 96.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941835105699", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941910466110", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1941722345922", "人工扣/加分项": "客服业务知识不足-基础业务知识解释不当/回答错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942108307549", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942111366212", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942227193005", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942333096096", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942340061658", "人工扣/加分项": "接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942410345994", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1941866122933", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942271580693", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942328039448", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942494238539", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1726", "接待客服姓名": "安晓轩", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT2527451465129", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1934520990076", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936450196160", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT7542192885758", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1935533086738", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936126045705", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936519114533", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936528751426", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936772220268", "人工扣/加分项": "工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936901977232", "人工扣/加分项": "客服业务知识不足-未结合物流轨迹/问题件进行回复 -5.0分", "人工复检分数": 95.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1936472990395", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1936500804557", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1936706843079", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1936979119705", "人工扣/加分项": "工单录入不规范-受理内容不准确 -2.0分, 接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 96.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1937097849792", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1937480833982", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1937548374989", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1937643665210", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1937732649626", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1937837541014", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-11T00:00:00.000", "登记运单号": "YT1938039958240", "人工扣/加分项": "同理心-未主动致歉安抚挽留/安抚不到位 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937736157912", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938073762168", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938168575387", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938182763526", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938305918541", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1936408526562", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1937977527189", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938021398872", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938297967404", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938425980286", "人工扣/加分项": "工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1937737140263", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938345741640", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938383918006", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938831397108", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939368840796", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939472926610", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939686175628", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939885612573", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1939615415430", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940169204506", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940288714160", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940487871082", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940173134844", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940300098470", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940512743764", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940629180665", "人工扣/加分项": "接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940674354176", "人工扣/加分项": "频繁使用快捷语/快捷语使用不当-频繁使用快捷语/快捷语使用不当 -3.0分, 同理心-未主动致歉安抚挽留/安抚不到位 -3.0分", "人工复检分数": 94.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1940934577655", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941080544335", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941484148858", "人工扣/加分项": "客服业务知识不足-基础业务知识解释不当/回答错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941649548846", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941666966991", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941732469498", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1940969772078", "人工扣/加分项": "工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941213706126", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941557363894", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941697804011", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1941135892637", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1941647499522", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942107759981", "人工扣/加分项": "工单录入不规范-受理内容不准确 -2.0分, 工单录入不规范-类型登记错误 -3.0分, 接待敷衍-未主动服务 -2.0分", "人工复检分数": 93.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942150126240", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942157236470", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942185367904", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942236231792", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942269838746", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942289514080", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942312077858", "人工扣/加分项": "客服业务知识不足-时效件未做解释/未告知预计到达时间 -5.0分", "人工复检分数": 95.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942322780067", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942341784934", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942344219945", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942445165871", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942455825013", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942553287322", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942585556137", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942015561515", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942179757856", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942301952872", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942388517876", "人工扣/加分项": "工单录入不规范-受理内容不准确 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942611094020", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1732", "接待客服姓名": "魏军", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942976564523", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1935061507802", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1935226615568", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1935796422643", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936048606167", "人工扣/加分项": "客服业务知识不足-更址件未告知转寄物流时间 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936144077397", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1934694931952", "人工扣/加分项": "客服业务知识不足-未结合物流轨迹/问题件进行回复 -5.0分", "人工复检分数": 95.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936327994893", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936403276994", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936440668677", "人工扣/加分项": "接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936466543572", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1936411917098", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1936834657797", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1937011022494", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-08T00:00:00.000", "登记运单号": "YT1937263548975", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1936446068132", "人工扣/加分项": "客服业务知识不足-未结合物流轨迹/问题件进行回复 -5.0分", "人工复检分数": 95.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937195874290", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937617539002", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937763745056", "人工扣/加分项": "客服业务知识不足-更址件未告知转寄物流时间 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1937794432211", "人工扣/加分项": "接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-12T00:00:00.000", "登记运单号": "YT1938145167390", "人工扣/加分项": "接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1937994304606", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938155768592", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938211172352", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938260534903", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938254723825", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938294202946", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938749565765", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938779115002", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT2552767912656", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1938498692695", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939560092911", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939805258281", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-18T00:00:00.000", "登记运单号": "YT1939808469408", "人工扣/加分项": "客服业务知识不足-未结合物流轨迹/问题件进行回复 -5.0分, 响应时长-超时未回复（30s） -1.0分", "人工复检分数": 94.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1938299448660", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1939256348380", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1939745306266", "人工扣/加分项": "客服业务知识不足-基础业务知识解释不当/回答错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1939972234529", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-19T00:00:00.000", "登记运单号": "YT1940126326292", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1939254365765", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940350109809", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940570514599", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1938806137045", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940414495765", "人工扣/加分项": "工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940696873875", "人工扣/加分项": "工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940882084036", "人工扣/加分项": "工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1939929941476", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941324961894", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941388309812", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941782728583", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1939979416391", "人工扣/加分项": "工单录入不规范-受理内容不准确 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1941500139138", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1941762357600", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1942032066761", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-27T00:00:00.000", "登记运单号": "YT1942050891336", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1941446775519", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942030470849", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942143093780", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942173462077", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1771", "接待客服姓名": "徐露露", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942519662165", "人工扣/加分项": "客服业务知识不足-更址件未告知转寄物流时间 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1934413862224", "人工扣/加分项": "长时间未响应导致客户离线-长时间未响应导致客户离线 -10.0分, 响应时长-超时未回复（30s） -1.0分", "人工复检分数": 89.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1934693313414", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1935048132762", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1935667696395", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 结束语不规范-客服未邀评 -2.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1935891221606", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936117113349", "人工扣/加分项": "接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936328849060", "人工扣/加分项": "接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936420856562", "人工扣/加分项": "接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936200986494", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936447003428", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936495233431", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936565060952", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936018088946", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936653509879", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936762106624", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936978368250", "人工扣/加分项": "工单录入不规范-受理内容不准确 -2.0分, 接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 95.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1937350586046", "人工扣/加分项": "工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1937938028876", "人工扣/加分项": "工单录入不规范-受理内容不准确 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938139089763", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938242230360", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938354067980", "人工扣/加分项": "客服业务知识不足-时效件未做解释/未告知预计到达时间 -5.0分, 响应时长-超时未回复（30s） -1.0分, 工单录入不规范-受理内容不准确 -2.0分", "人工复检分数": 92.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-13T00:00:00.000", "登记运单号": "YT1938472481297", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938107445388", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938826021508", "人工扣/加分项": "工单录入不规范-受理内容不准确 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-14T00:00:00.000", "登记运单号": "YT1938886950691", "人工扣/加分项": "客服业务知识不足-更址件未告知转寄物流时间 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938207828702", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1938677108164", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1939086458516", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-15T00:00:00.000", "登记运单号": "YT1939241854823", "人工扣/加分项": "客服业务知识不足-更址件未告知转寄物流时间 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1939451045459", "人工扣/加分项": "客服业务知识不足-未结合催件、投诉记录进行回复客户 -5.0分, 响应时长-超时未回复（30s） -1.0分, 工单录入不规范-受理内容不准确 -2.0分", "人工复检分数": 92.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940059445783", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940098180773", "人工扣/加分项": "客服业务知识不足-更址件未告知转寄物流时间 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940238371223", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-20T00:00:00.000", "登记运单号": "YT1940675503656", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1939872859217", "人工扣/加分项": "工单录入不规范-受理内容不准确 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940103930298", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-21T00:00:00.000", "登记运单号": "YT1940126203193", "人工扣/加分项": "同理心-未主动致歉安抚挽留/安抚不到位 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940293128808", "人工扣/加分项": "工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940699288306", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 96.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940703450709", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 96.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940867003823", "人工扣/加分项": "工单录入不规范-类型登记错误 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-22T00:00:00.000", "登记运单号": "YT1940927763489", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 工单录入不规范-类型登记错误 -3.0分, 接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 94.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1939961811603", "人工扣/加分项": "同理心-未主动致歉安抚挽留/安抚不到位 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941368742527", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941583080307", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-25T00:00:00.000", "登记运单号": "YT1941809205462", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1940999537575", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941680311489", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941910299471", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941965626194", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-26T00:00:00.000", "登记运单号": "YT1941990784627", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1941261123922", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1941974592109", "人工扣/加分项": "工单录入不规范-受理内容不准确 -2.0分", "人工复检分数": 98.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942028353699", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942501569618", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 96.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-28T00:00:00.000", "登记运单号": "YT1942515567163", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分, 接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分", "人工复检分数": 96.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1941867944178", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942142050726", "人工扣/加分项": "接待敷衍-未正面回复客户/未做解释登记加急工单处理 -3.0分, 接待敷衍-无效沟通：缺乏倾听/判断，信息传递不清 -2.0分", "人工复检分数": 95.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942504310297", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942743183656", "人工扣/加分项": "响应时长-超时未回复（30s） -1.0分", "人工复检分数": 99.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "在线接待组", "接待客服工号": "WJNB1793", "接待客服姓名": "李白雪", "进线时间": "2025-05-29T00:00:00.000", "登记运单号": "YT1942763546952", "人工扣/加分项": "客服业务知识不足-未结合物流轨迹/问题件进行回复 -5.0分", "人工复检分数": 95.0}], "workplace": "郑州呼叫中心", "date_range": "2025-04-30-2025-05-29", "deduction_reasons": {"未结合物流轨迹/问题件进行回复": 7, "超时未回复（30s）": 78, "基础业务知识解释不当/回答错误": 4, "表达逻辑不清晰、不简洁": 1, "类型登记错误": 17, "时效件未做解释/未告知预计到达时间": 5, "无效沟通：缺乏倾听/判断，信息传递不清": 16, "更址件未告知转寄物流时间": 7, "未主动致歉安抚挽留/安抚不到位": 6, "未正面回复客户/未做解释登记加急工单处理": 17, "接待禁语": 1, "未主动服务": 2, "受理内容不准确": 11, "频繁使用快捷语/快捷语使用不当": 1, "长时间未响应导致客户离线": 1, "客服未邀评": 1, "未结合催件、投诉记录进行回复客户": 1}, "core_metric": 0.8261666666666666, "metric_name": "平台满意度", "problem_order_percent": 39.62264150943396, "problem_rep_percent": 100.0, "continuous_problem_reps": [{"rep_id": "WJNB1711", "rep_name": "杨琳", "date_range": "05.05-05.07", "reason": "超时未回复（30s）"}, {"rep_id": "WJNB1726", "rep_name": "安晓轩", "date_range": "05.05-05.07", "reason": "超时未回复（30s）"}, {"rep_id": "WJNB1726", "rep_name": "安晓轩", "date_range": "05.05-05.08", "reason": "未正面回复客户/未做解释登记加急工单处理"}, {"rep_id": "WJNB1771", "rep_name": "徐露露", "date_range": "05.18-05.21", "reason": "超时未回复（30s）"}, {"rep_id": "WJNB1793", "rep_name": "李白雪", "date_range": "05.05-05.07", "reason": "超时未回复（30s）"}], "continuous_problem_reps_percent": 66.66666666666666, "metric_achievement": {"achieved": 0, "not_achieved": 6, "unevaluated": 0, "total": 6}}, "拼多多平台客服组": {"data": [{"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1680", "接待客服姓名": "高娅倩", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1934013360845", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1680", "接待客服姓名": "高娅倩", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1934977634736", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1680", "接待客服姓名": "高娅倩", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1935035027967", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1680", "接待客服姓名": "高娅倩", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936039176578", "人工扣/加分项": "同理心-未主动致歉安抚挽留/安抚不到位 -3.0分", "人工复检分数": 97.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1680", "接待客服姓名": "高娅倩", "进线时间": "2025-05-05T00:00:00.000", "登记运单号": "YT1936117219061", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1759", "接待客服姓名": "杨冰濠", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1934588401240", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1759", "接待客服姓名": "杨冰濠", "进线时间": "2025-04-30T00:00:00.000", "登记运单号": "YT1934841807116", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1759", "接待客服姓名": "杨冰濠", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1935381982208", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1759", "接待客服姓名": "杨冰濠", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936463169991", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1759", "接待客服姓名": "杨冰濠", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936531163348", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1759", "接待客服姓名": "杨冰濠", "进线时间": "2025-05-06T00:00:00.000", "登记运单号": "YT1936542654624", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1759", "接待客服姓名": "杨冰濠", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1935968539430", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1759", "接待客服姓名": "杨冰濠", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936645275153", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1759", "接待客服姓名": "杨冰濠", "进线时间": "2025-05-07T00:00:00.000", "登记运单号": "YT1936670194481", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1988", "接待客服姓名": "李锦馨", "进线时间": "2025-06-10T00:00:00.000", "登记运单号": "YT1945119752210", "人工扣/加分项": "", "人工复检分数": 100.0}, {"进行渠道": "抖音", "二级部门": "郑州呼叫中心", "三级部门": "拼多多平台客服组", "接待客服工号": "WJNB1988", "接待客服姓名": "李锦馨", "进线时间": "2025-06-10T00:00:00.000", "登记运单号": "YT1945164123809", "人工扣/加分项": "", "人工复检分数": 100.0}], "workplace": "郑州呼叫中心", "date_range": "2025-04-30-2025-06-10", "deduction_reasons": {"未主动致歉安抚挽留/安抚不到位": 1}, "core_metric": 0.5493333333333333, "metric_name": "平台满意度", "problem_order_percent": 6.25, "problem_rep_percent": 0.0, "continuous_problem_reps": [], "continuous_problem_reps_percent": 0.0, "metric_achievement": {"achieved": 0, "not_achieved": 3, "unevaluated": 0, "total": 3}}};
+      const departments = ["在线接待组", "拼多多平台客服组"];
+
+      if (!allData || !departments || !Array.isArray(departments) || departments.length === 0) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-100 flex items-center justify-center pt-16">
+            <div className="container mx-auto px-4 sm:px-6 max-w-full sm:max-w-5xl bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-6 sm:p-8 animate-slideIn">
+              <div className="text-xl sm:text-2xl font-semibold text-gray-600 text-center">
+                无法加载数据，请检查数据文件或联系管理员
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      const [selectedDept, setSelectedDept] = React.useState('');
+      const [page, setPage] = React.useState('home');
+      const [isNavbarOpen, setIsNavbarOpen] = React.useState(false);
+
+      const toggleNavbar = () => {
+        setIsNavbarOpen(prev => {
+          console.log('Navbar toggled:', !prev);
+          return !prev;
+        });
+      };
+
+      const deptData = allData[selectedDept] || { data: [], workplace: '未知', date_range: '未知', deduction_reasons: {}, core_metric: 0.0, metric_name: '', problem_order_percent: 0.0, problem_rep_percent: 0.0, continuous_problem_reps: [], continuous_problem_reps_percent: 0.0, metric_achievement: {achieved: 0, not_achieved: 0, unevaluated: 0, total: 0} };
+
+      return (
+        <div className={isNavbarOpen ? 'mt-24' : 'mt-16'} style={{ transition: 'margin-top 0.3s ease-in-out' }}>
+          <NavBar
+            departments={departments}
+            selectedDept={selectedDept}
+            setSelectedDept={setSelectedDept}
+            setPage={setPage}
+            isNavbarOpen={isNavbarOpen}
+            toggleNavbar={toggleNavbar}
+          />
+          {page === 'home' ? (
+            <HomePage
+              departments={departments}
+              setSelectedDept={setSelectedDept}
+              setPage={setPage}
+            />
+          ) : (
+            <Report
+              data={deptData.data}
+              dept_name={selectedDept}
+              workplace={deptData.workplace}
+              date_range={deptData.date_range}
+              deduction_reasons={deptData.deduction_reasons}
+              core_metric={deptData.core_metric}
+              metric_name={deptData.metric_name}
+              problem_order_percent={deptData.problem_order_percent}
+              problem_rep_percent={deptData.problem_rep_percent}
+              continuous_problem_reps={deptData.continuous_problem_reps}
+              continuous_problem_reps_percent={deptData.continuous_problem_reps_percent}
+              metric_achievement={deptData.metric_achievement}
+            />
+          )}
+        </div>
+      );
+    }
+
+    try {
+      root.render(<App />);
+    } catch (e) {
+      console.error('Rendering error:', e);
+      document.getElementById('root').innerHTML = `
+        <div class="min-h-screen bg-gradient-to-br from-gray-50 to-indigo-100 flex items-center justify-center pt-16">
+          <div class="container mx-auto px-4 sm:px-6 max-w-full sm:max-w-5xl bg-white/80 backdrop-blur-md rounded-2xl shadow-lg p-6 sm:p-8 animate-slideIn">
+            <div class="text-xl sm:text-2xl font-semibold text-gray-600 text-center">渲染失败，请检查控制台错误</div>
+          </div>
+        </div>`;
+      document.getElementById('error').className = 'text-red-600 text-center mt-4';
+      document.getElementById('error').innerText = `渲染错误：${e.message}`;
+    }
+  </script>
+</body>
+</html>
